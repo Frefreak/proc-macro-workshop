@@ -1,23 +1,68 @@
+use std::collections::HashMap;
+
 use proc_macro::TokenStream;
-use syn::{DeriveInput, Type};
+use syn::{DeriveInput, Expr, Lit, Path, Type};
 use quote::{format_ident, quote, TokenStreamExt};
 
-#[proc_macro_derive(Builder)]
+#[proc_macro_derive(Builder, attributes(builder))]
 pub fn derive(input: TokenStream) -> TokenStream {
     let derive_input: DeriveInput = syn::parse(input).unwrap();
     let ident = derive_input.ident;
     let builder_name = format_ident!("{ident}Builder");
     let mut must_have_fields = Vec::new();
     let mut option_fields = Vec::new();
+    let mut vec_fields = Vec::new();
     match derive_input.data {
         syn::Data::Struct(st) => {
             let mut builder_fields = quote!{};
             let mut initialize_fields = quote!{};
             let mut field_setters = quote!{};
+            let mut each_fields = HashMap::new();
             // let mut must_have_fields = Vec::new();
             for field in st.fields.iter() {
                 let field_ident = &field.ident;
                 let field_ty = &field.ty;
+                let mut stop = false;
+                for attr in &field.attrs {
+                    if attr.meta.path().is_ident("builder") {
+                        let args: Expr = attr.parse_args().unwrap();
+                        // eprintln!("{:#?}", args);
+                        if let Expr::Assign(assign) = args {
+                            let left = assign.left;
+                            let right = assign.right;
+                            if let Expr::Path(path) = *left {
+                                if path.path.is_ident("each") {
+                                    if let Expr::Lit(lit) = *right {
+                                        if let Lit::Str(litstr) = lit.lit {
+                                            let p = litstr.parse::<Path>().unwrap();
+                                            let id = p.get_ident().unwrap();
+                                            each_fields.insert(field_ident, (field_ty, id.clone()));
+                                            stop = true;
+                                            builder_fields.append_all(quote!{
+                                                #field_ident: #field_ty,
+                                            });
+                                            field_setters.append_all(quote!{
+                                                // TODO: get inner type
+                                                fn #id(&mut self, ele: String) -> &mut Self {
+                                                    self.#field_ident.push(ele);
+                                                    self
+                                                }
+                                            });
+                                            initialize_fields.append_all(quote!{
+                                                #field_ident: Vec::new(),
+                                            });
+                                            vec_fields.push(field.ident.clone());
+                                            break;
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+                if stop {
+                    continue;
+                }
                 initialize_fields.append_all(quote!{
                     #field_ident: None,
                 });
@@ -90,6 +135,7 @@ pub fn derive(input: TokenStream) -> TokenStream {
                         return Ok(#ident {
                             #( #idents2: self.#idents2.clone().unwrap(), )*
                             #( #option_fields: self.#option_fields.clone(), )*
+                            #( #vec_fields: self.#vec_fields.clone(), )*
                         })
                     }
                 }
