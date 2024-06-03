@@ -1,7 +1,7 @@
 use std::collections::HashMap;
 
 use proc_macro::TokenStream;
-use syn::{DeriveInput, Expr, Lit, Path, Type};
+use syn::{DeriveInput, Expr, GenericArgument, Lit, Path, PathArguments, Type};
 use quote::{format_ident, quote, TokenStreamExt};
 
 #[proc_macro_derive(Builder, attributes(builder))]
@@ -41,13 +41,23 @@ pub fn derive(input: TokenStream) -> TokenStream {
                                             builder_fields.append_all(quote!{
                                                 #field_ident: #field_ty,
                                             });
-                                            field_setters.append_all(quote!{
-                                                // TODO: get inner type
-                                                fn #id(&mut self, ele: String) -> &mut Self {
-                                                    self.#field_ident.push(ele);
-                                                    self
+                                            if let Type::Path(type_path) = field_ty {
+                                                let segment = &type_path.path.segments[0];
+                                                // eprintln!("segments: {:#?}", segment);
+                                                if let PathArguments::AngleBracketed(args) = &segment.arguments {
+                                                    let arg = &args.args[0];
+                                                    if let GenericArgument::Type(Type::Path(pp)) = arg {
+                                                        let inner_ty_ident = pp.path.get_ident();
+                                                        field_setters.append_all(quote!{
+                                                            fn #id(&mut self, ele: #inner_ty_ident) -> &mut Self {
+                                                                self.#field_ident.push(ele);
+                                                                self
+                                                            }
+                                                        });
+                                                    }
                                                 }
-                                            });
+
+                                            }
                                             initialize_fields.append_all(quote!{
                                                 #field_ident: Vec::new(),
                                             });
