@@ -108,7 +108,7 @@ pub fn derive(input: TokenStream) -> TokenStream {
                     } else {
                         must_have_fields.push(field.ident.clone());
                         builder_fields.append_all(quote!{
-                            #field_ident: Option<#field_ty>,
+                            #field_ident: ::std::option::Option<#field_ty>,
                         });
                         field_setters.append_all(quote!{
                             fn #field_ident(&mut self, #field_ident: #field_ty) -> &mut Self {
@@ -120,7 +120,7 @@ pub fn derive(input: TokenStream) -> TokenStream {
                 } else {
                     must_have_fields.push(field.ident.clone());
                     builder_fields.append_all(quote!{
-                        #field_ident: Option<#field_ty>,
+                        #field_ident: ::std::option::Option<#field_ty>,
                     });
                     field_setters.append_all(quote!{
                         fn #field_ident(&mut self, #field_ident: #field_ty) -> &mut Self {
@@ -140,7 +140,7 @@ pub fn derive(input: TokenStream) -> TokenStream {
                 impl #builder_name {
                     #field_setters
 
-                    pub fn build(&mut self) -> Result<#ident, Box<dyn ::std::error::Error>> {
+                    pub fn build(&mut self) -> ::std::result::Result<#ident, ::std::boxed::Box<dyn ::std::error::Error>> {
                         #( if self.#must_have_fields.is_none() {
                             return Err(format!("missing field: {}", stringify!(#must_have_fields)).into())
                         })*
