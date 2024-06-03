@@ -1,7 +1,7 @@
 use std::collections::HashMap;
 
 use proc_macro::TokenStream;
-use syn::{DeriveInput, Expr, GenericArgument, Lit, Path, PathArguments, Type};
+use syn::{spanned::Spanned, DeriveInput, Error, Expr, GenericArgument, Lit, Path, PathArguments, Type};
 use quote::{format_ident, quote, TokenStreamExt};
 
 #[proc_macro_derive(Builder, attributes(builder))]
@@ -65,6 +65,9 @@ pub fn derive(input: TokenStream) -> TokenStream {
                                             break;
                                         }
                                     }
+                                } else {
+                                    let err = Error::new(attr.meta.span(), "expected `builder(each = \"...\")`");
+                                    return err.into_compile_error().into();
                                 }
                             }
                         }
